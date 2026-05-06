@@ -1,0 +1,52 @@
+[package]
+name = "wiki_rt_monitor"
+version = "0.1.0"
+edition = "2021"
+description = "Real-time Wikipedia Recent Changes monitoring engine (RTS2601)"
+default-run = "wiki_rt_monitor"
+
+[lib]
+name = "wiki_rt_monitor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wiki_rt_monitor"
+path = "src/main.rs"
+
+[[bin]]
+name = "compare_pipelines"
+path = "src/bin/compare_pipelines.rs"
+
+[dependencies]
+# Async runtime
+tokio        = { version = "1", features = ["full"] }
+tokio-util   = { version = "0.7", features = ["io"] }
+futures      = "0.3"
+# HTTP / SSE
+reqwest      = { version = "0.11", features = ["stream"] }
+bytes        = "1"
+# Serialisation (zero-copy with lifetimes)
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+# Concurrency
+crossbeam    = "0.8"
+parking_lot  = "0.12"          # faster Mutex / RwLock
+# Utilities
+rand         = "0.8"
+chrono       = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+criterion    = { version = "0.5", features = ["html_reports"] }
+tokio        = { version = "1", features = ["full"] }
+
+[[bench]]
+name = "latency_bench"
+harness = false
+
+[[bench]]
+name = "sync_bench"
+harness = false
+
+[[bench]]
+name = "pipeline_bench"
+harness = false
