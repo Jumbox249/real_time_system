@@ -16,18 +16,22 @@ use wiki_rt_monitor::component_d::{run_all_and_print, Leaderboard, SyncStrategy}
 use wiki_rt_monitor::component_e::{FailSafe, Watchdog};
 use wiki_rt_monitor::ingestion::StreamSource;
 use wiki_rt_monitor::metrics::new_metrics;
+use wiki_rt_monitor::types::StressConfig;
 
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const RUN_SECS: u64 = 60;
-const MOCK_EPS: u64 = 200; // events/sec in mock mode
+const MOCK_EPS: u64 = 2000; // events/sec in mock mode
 
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let use_mock = args.iter().any(|a| a == "--mock" || a == "-m");
+    let use_mock  = args.iter().any(|a| a == "--mock" || a == "-m");
+    let stress_on = args.iter().any(|a| a == "--stress");
+    let stress    = if stress_on { StressConfig::default_demo() } else { StressConfig::off() };
+
     let source   = if use_mock {
         println!("[main] Using mock stream ({MOCK_EPS} events/s)");
         StreamSource::Mock(MOCK_EPS)
@@ -35,6 +39,9 @@ async fn main() {
         println!("[main] Connecting to live Wikipedia SSE stream");
         StreamSource::Live
     };
+    if stress_on {
+        println!("[main] Stress demo mode enabled — expect Degraded transitions and a Watchdog reset");
+    }
 
     println!("╔══════════════════════════════════════════════════════════╗");
     println!("║   Wikipedia Real-Time Monitoring Engine  –  RTS2601       ║");
@@ -66,6 +73,7 @@ async fn main() {
         Arc::clone(&stop_a),
         duration,
         Arc::clone(&last_event),
+        stress,
     );
 
     // Hot path for async pipeline.
@@ -73,6 +81,7 @@ async fn main() {
         Arc::clone(&metrics),
         Arc::clone(&leaderboard),
         Arc::clone(&fail_safe),
+        stress,
     );
     let stop_hp = Arc::clone(&stop);
     tokio::spawn(async move {
@@ -97,6 +106,7 @@ async fn main() {
                 stop_t,
                 duration,
                 last_event_t,
+                stress,
             );
         })
         .expect("threaded pipeline thread");
@@ -106,6 +116,7 @@ async fn main() {
         Arc::clone(&metrics),
         lb_t,
         fs_t,
+        stress,
     );
     let stop_hp2 = Arc::clone(&stop);
     std::thread::Builder::new()

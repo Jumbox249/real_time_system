@@ -24,7 +24,7 @@ use wiki_rt_monitor::component_d::{Leaderboard, SyncStrategy};
 use wiki_rt_monitor::component_e::FailSafe;
 use wiki_rt_monitor::ingestion::StreamSource;
 use wiki_rt_monitor::metrics::new_metrics;
-use wiki_rt_monitor::types::ChangePacket;
+use wiki_rt_monitor::types::{ChangePacket, StressConfig};
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ fn bench_async_pipeline_throughput(c: &mut Criterion) {
                 let (tx, rx)  = tokio::sync::mpsc::channel(512);
                 let lb        = Leaderboard::new(SyncStrategy::Atomic, Arc::clone(&metrics));
                 let fs        = FailSafe::new(Arc::clone(&metrics));
-                let hp        = HotPathProcessor::new(Arc::clone(&metrics), Arc::clone(&lb), Arc::clone(&fs));
+                let hp        = HotPathProcessor::new(Arc::clone(&metrics), Arc::clone(&lb), Arc::clone(&fs), StressConfig::off());
                 let stop_hp   = Arc::clone(&stop);
                 tokio::spawn(async move { hp.run_async(rx, stop_hp).await; });
 
@@ -57,6 +57,7 @@ fn bench_async_pipeline_throughput(c: &mut Criterion) {
                     Arc::clone(&stop),
                     Duration::from_secs(BENCH_DURATION_SECS),
                     Arc::new(AtomicI64::new(0)),
+                    StressConfig::off(),
                 ).await;
 
                 black_box(stats.events_received)
@@ -75,7 +76,7 @@ fn bench_threaded_pipeline_throughput(c: &mut Criterion) {
             let (tx, rx) = crossbeam::channel::bounded(512);
             let lb       = Leaderboard::new(SyncStrategy::Atomic, Arc::clone(&metrics));
             let fs       = FailSafe::new(Arc::clone(&metrics));
-            let hp       = HotPathProcessor::new(Arc::clone(&metrics), Arc::clone(&lb), Arc::clone(&fs));
+            let hp       = HotPathProcessor::new(Arc::clone(&metrics), Arc::clone(&lb), Arc::clone(&fs), StressConfig::off());
             let stop_hp  = Arc::clone(&stop);
             std::thread::spawn(move || {
                 hp.spawn_threaded(rx, stop_hp).join().ok();
@@ -88,6 +89,7 @@ fn bench_threaded_pipeline_throughput(c: &mut Criterion) {
                 Arc::clone(&stop),
                 Duration::from_secs(BENCH_DURATION_SECS),
                 Arc::new(AtomicI64::new(0)),
+                StressConfig::off(),
             );
 
             black_box(stats.events_received)
@@ -232,7 +234,7 @@ fn bench_async_pipeline_scalability(c: &mut Criterion) {
                     let (tx, rx) = tokio::sync::mpsc::channel(512);
                     let lb       = Leaderboard::new(SyncStrategy::Atomic, Arc::clone(&metrics));
                     let fs       = FailSafe::new(Arc::clone(&metrics));
-                    let hp       = HotPathProcessor::new(Arc::clone(&metrics), Arc::clone(&lb), Arc::clone(&fs));
+                    let hp       = HotPathProcessor::new(Arc::clone(&metrics), Arc::clone(&lb), Arc::clone(&fs), StressConfig::off());
                     let stop_hp  = Arc::clone(&stop);
                     tokio::spawn(async move { hp.run_async(rx, stop_hp).await; });
 
@@ -243,6 +245,7 @@ fn bench_async_pipeline_scalability(c: &mut Criterion) {
                         Arc::clone(&stop),
                         Duration::from_secs(BENCH_DURATION_SECS),
                         Arc::new(AtomicI64::new(0)),
+                        StressConfig::off(),
                     ).await;
 
                     black_box(stats.throughput())

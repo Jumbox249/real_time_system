@@ -20,7 +20,7 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use crate::ingestion::{mock_stream, sse_client, StreamSource};
 use crate::metrics::MetricsHandle;
-use crate::types::{ChangePacket, OverflowEvent, WikiChange};
+use crate::types::{ChangePacket, OverflowEvent, StressConfig, WikiChange};
 
 /// Bounded channel capacity for the ingestion buffer.
 pub const CHANNEL_CAPACITY: usize = 512;
@@ -50,6 +50,7 @@ pub async fn run_async_pipeline(
     stop:        Arc<AtomicBool>,
     duration:    Duration,
     last_event:  Arc<AtomicI64>,
+    stress:      StressConfig,
 ) -> AsyncPipelineStats {
     let start          = Instant::now();
     let (raw_tx, raw_rx) = mpsc::channel::<Bytes>(CHANNEL_CAPACITY);
@@ -66,8 +67,9 @@ pub async fn run_async_pipeline(
         }
         StreamSource::Mock(eps) => {
             let raw_tx2 = raw_tx.clone();
+            let silence = stress.silence_window;
             tokio::spawn(async move {
-                mock_stream::run_mock_stream(raw_tx2, eps, stop_ingest).await;
+                mock_stream::run_mock_stream(raw_tx2, eps, stop_ingest, silence).await;
             });
         }
     }

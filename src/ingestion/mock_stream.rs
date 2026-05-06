@@ -10,7 +10,7 @@
 /// spread across the top Wikipedia domains.
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use rand::{Rng, SeedableRng};
@@ -37,14 +37,19 @@ const BOT_USERS:    &[&str] = &["ClueBot_NG", "AntiVandal", "PageMover_bot", "Re
 
 /// Run the mock stream indefinitely, pushing synthetic JSON events.
 /// `events_per_second` controls the simulated load.
+/// `silence_window` (when set) skips emission during `[start, end)` measured
+/// from the start of this call — used by the `--stress` demo to fire the
+/// watchdog reset path.
 pub async fn run_mock_stream(
     tx:                 Sender<Bytes>,
     events_per_second:  u64,
     stop:               Arc<AtomicBool>,
+    silence_window:     Option<(Duration, Duration)>,
 ) {
     let interval = Duration::from_micros(1_000_000 / events_per_second.max(1));
     let mut rng  = StdRng::from_entropy();
     let mut seq  = 0u64;
+    let start    = Instant::now();
 
     while !stop.load(Ordering::Relaxed) {
         let is_bot      = rng.gen_bool(0.80);
@@ -65,7 +70,11 @@ pub async fn run_mock_stream(
         );
 
         seq += 1;
-        let _ = tx.try_send(Bytes::from(json.into_bytes()));
+        let in_silence = silence_window
+            .map_or(false, |(s, e)| { let now = start.elapsed(); now >= s && now < e });
+        if !in_silence {
+            let _ = tx.try_send(Bytes::from(json.into_bytes()));
+        }
         sleep(interval).await;
     }
 }
@@ -75,10 +84,12 @@ pub fn run_mock_stream_blocking(
     tx:                std::sync::mpsc::SyncSender<Bytes>,
     events_per_second: u64,
     stop:              Arc<AtomicBool>,
+    silence_window:    Option<(Duration, Duration)>,
 ) {
     let interval = Duration::from_micros(1_000_000 / events_per_second.max(1));
     let mut rng  = rand::thread_rng();
     let mut seq  = 0u64;
+    let start    = Instant::now();
 
     while !stop.load(Ordering::Relaxed) {
         let is_bot  = rng.gen_bool(0.80);
@@ -94,7 +105,11 @@ pub fn run_mock_stream_blocking(
             r#"{{"user":"{user}","bot":{is_bot},"server_name":"{domain}","title":"Page_{seq}","type":"edit","namespace":0,"timestamp":{ts}}}"#,
         );
         seq += 1;
-        let _ = tx.try_send(Bytes::from(json.into_bytes()));
+        let in_silence = silence_window
+            .map_or(false, |(s, e)| { let now = start.elapsed(); now >= s && now < e });
+        if !in_silence {
+            let _ = tx.try_send(Bytes::from(json.into_bytes()));
+        }
         std::thread::sleep(interval);
     }
 }

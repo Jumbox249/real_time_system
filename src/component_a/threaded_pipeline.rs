@@ -19,7 +19,7 @@ use crossbeam::channel::{bounded, Receiver, Sender, TrySendError};
 
 use crate::ingestion::mock_stream;
 use crate::metrics::MetricsHandle;
-use crate::types::{ChangePacket, OverflowEvent, WikiChange};
+use crate::types::{ChangePacket, OverflowEvent, StressConfig, WikiChange};
 
 pub const CHANNEL_CAPACITY: usize = 512;
 
@@ -46,6 +46,7 @@ pub fn run_threaded_pipeline(
     stop:              Arc<AtomicBool>,
     duration:          Duration,
     last_event:        Arc<AtomicI64>,
+    stress:            StressConfig,
 ) -> ThreadedPipelineStats {
     let start              = Instant::now();
     let (raw_tx, raw_rx)   = bounded::<Bytes>(CHANNEL_CAPACITY);
@@ -53,8 +54,9 @@ pub fn run_threaded_pipeline(
     let events_counter     = Arc::new(AtomicU64::new(0));
 
     // ── Ingestion thread ──────────────────────────────────────────────────────
-    let stop_ingest = Arc::clone(&stop);
-    let raw_tx_ingest = raw_tx.clone();
+    let stop_ingest    = Arc::clone(&stop);
+    let raw_tx_ingest  = raw_tx.clone();
+    let silence_window = stress.silence_window;
     std::thread::Builder::new()
         .name("threaded-ingestion".into())
         .spawn(move || {
@@ -64,6 +66,7 @@ pub fn run_threaded_pipeline(
                 adapt_to_sync_sender(raw_tx_ingest),
                 events_per_second,
                 stop_ingest,
+                silence_window,
             );
         })
         .expect("failed to spawn ingestion thread");

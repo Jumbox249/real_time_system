@@ -12,6 +12,7 @@ use wiki_rt_monitor::component_d::{Leaderboard, SyncStrategy};
 use wiki_rt_monitor::component_e::FailSafe;
 use wiki_rt_monitor::ingestion::StreamSource;
 use wiki_rt_monitor::metrics::new_metrics;
+use wiki_rt_monitor::types::StressConfig;
 
 use std::sync::atomic::{AtomicBool, AtomicI64};
 use std::sync::Arc;
@@ -34,7 +35,7 @@ async fn main() {
     let (a_tx, a_rx)  = tokio::sync::mpsc::channel(512);
     let lb_a  = Leaderboard::new(SyncStrategy::Atomic, Arc::clone(&async_metrics));
     let fs_a  = FailSafe::new(Arc::clone(&async_metrics));
-    let hp_a  = HotPathProcessor::new(Arc::clone(&async_metrics), Arc::clone(&lb_a), Arc::clone(&fs_a));
+    let hp_a  = HotPathProcessor::new(Arc::clone(&async_metrics), Arc::clone(&lb_a), Arc::clone(&fs_a), StressConfig::off());
     let stop_hp = Arc::clone(&stop_a);
     tokio::spawn(async move { hp_a.run_async(a_rx, stop_hp).await; });
 
@@ -46,6 +47,7 @@ async fn main() {
         Arc::clone(&stop_a),
         Duration::from_secs(WINDOW_SECS),
         last_event_a,
+        StressConfig::off(),
     ).await;
 
     // ── Run threaded pipeline ─────────────────────────────────────────────────
@@ -55,7 +57,7 @@ async fn main() {
     let (t_tx, t_rx) = crossbeam::channel::bounded(512);
     let lb_t  = Leaderboard::new(SyncStrategy::Mutex, Arc::clone(&thr_metrics));
     let fs_t  = FailSafe::new(Arc::clone(&thr_metrics));
-    let hp_t  = HotPathProcessor::new(Arc::clone(&thr_metrics), Arc::clone(&lb_t), Arc::clone(&fs_t));
+    let hp_t  = HotPathProcessor::new(Arc::clone(&thr_metrics), Arc::clone(&lb_t), Arc::clone(&fs_t), StressConfig::off());
     let stop_hp2 = Arc::clone(&stop_t);
     std::thread::spawn(move || { hp_t.spawn_threaded(t_rx, stop_hp2).join().ok(); });
 
@@ -67,6 +69,7 @@ async fn main() {
         Arc::clone(&stop_t),
         Duration::from_secs(WINDOW_SECS),
         last_event_t,
+        StressConfig::off(),
     );
 
     // ── Print comparison ──────────────────────────────────────────────────────

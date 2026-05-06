@@ -120,6 +120,40 @@ pub struct OverflowEvent {
     pub total_drops: u64,
 }
 
+// ─── Stress demo configuration ───────────────────────────────────────────────
+
+/// Optional stress mode to demonstrate the runtime fault-tolerance machinery.
+/// Default-off: when `enabled` is false, every other field is ignored and the
+/// system behaves identically to a normal run.
+#[derive(Debug, Clone, Copy)]
+pub struct StressConfig {
+    pub enabled:                  bool,
+    /// Inject ~3 ms busy-spin latency on every Nth hot-path packet.
+    /// Zero disables injection even when `enabled` is true.
+    pub inject_latency_every_nth: u64,
+    /// Mock stream silence window: (start, end) measured from stream start.
+    /// During this window the producer skips `try_send`, so the watchdog
+    /// observes ingestion silence and fires a Network Reset.
+    pub silence_window: Option<(std::time::Duration, std::time::Duration)>,
+}
+
+impl StressConfig {
+    pub const fn off() -> Self {
+        Self { enabled: false, inject_latency_every_nth: 0, silence_window: None }
+    }
+
+    /// Default demo profile: 3 ms spike every 50 packets,
+    /// 15 s silence from second 30 to second 45.
+    pub fn default_demo() -> Self {
+        use std::time::Duration;
+        Self {
+            enabled: true,
+            inject_latency_every_nth: 50,
+            silence_window: Some((Duration::from_secs(30), Duration::from_secs(45))),
+        }
+    }
+}
+
 // ─── System mode ─────────────────────────────────────────────────────────────
 
 /// Operating mode of the monitoring engine.

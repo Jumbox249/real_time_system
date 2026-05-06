@@ -10,22 +10,24 @@
 ///   3. Record scheduling drift (Component C).
 ///   4. Check deadline: if T3 − T2 > 2 ms, log a deadline miss.
 ///   5. In Degraded mode (Component E): skip bot packets entirely.
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::component_d::leaderboard::Leaderboard;
 use crate::component_e::fail_safe::FailSafe;
 use crate::metrics::MetricsHandle;
-use crate::types::{ChangePacket, Priority};
+use crate::types::{ChangePacket, Priority, StressConfig};
 
 /// Hard per-packet processing deadline.
 pub const HOT_DEADLINE: Duration = Duration::from_millis(2);
 
 pub struct HotPathProcessor {
-    metrics:    MetricsHandle,
-    leaderboard: Arc<Leaderboard>,
-    fail_safe:  Arc<FailSafe>,
+    metrics:        MetricsHandle,
+    leaderboard:    Arc<Leaderboard>,
+    fail_safe:      Arc<FailSafe>,
+    stress:         StressConfig,
+    stress_counter: AtomicU64,
 }
 
 impl HotPathProcessor {
@@ -33,8 +35,12 @@ impl HotPathProcessor {
         metrics:     MetricsHandle,
         leaderboard: Arc<Leaderboard>,
         fail_safe:   Arc<FailSafe>,
+        stress:      StressConfig,
     ) -> Self {
-        Self { metrics, leaderboard, fail_safe }
+        Self {
+            metrics, leaderboard, fail_safe, stress,
+            stress_counter: AtomicU64::new(0),
+        }
     }
 
     /// Process one ChangePacket on the hot path.
@@ -60,6 +66,19 @@ impl HotPathProcessor {
         // ── Degraded mode: skip bot packets ──────────────────────────────────
         if self.fail_safe.is_degraded() && pkt.priority == Priority::Low {
             return true; // skip but not a miss
+        }
+
+        // ── Stress demo: inject 3 ms busy-spin every Nth packet ──────────────
+        // Drives latency past JITTER_THRESHOLD_US so the FailSafe state
+        // machine transitions Normal → Degraded → Recovery → Normal.
+        if self.stress.enabled && self.stress.inject_latency_every_nth > 0 {
+            let n = self.stress_counter.fetch_add(1, Ordering::Relaxed);
+            if n % self.stress.inject_latency_every_nth == 0 {
+                let target = Instant::now() + Duration::from_millis(3);
+                while Instant::now() < target {
+                    std::hint::spin_loop();
+                }
+            }
         }
 
         // ── Leaderboard update (Component D) ─────────────────────────────────
