@@ -13,7 +13,7 @@ use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
 };
 
-use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64};
 use std::sync::Arc;
 use std::time::Duration;
 

@@ -41,7 +41,9 @@ const BOT_JSON: &[u8] = br#"{
 
 /// Event with Unicode escapes in the title – forces serde to heap-allocate
 /// the title field, which lets us prove the zero-copy path avoids that.
-const UNICODE_JSON: &[u8] = br#"{
+/// Stored as `&str` because Rust byte string literals cannot contain
+/// non-ASCII characters; we expose `.as_bytes()` at the use site.
+const UNICODE_JSON: &str = r#"{
     "bot": false,
     "user": "편집자",
     "server_name": "ko.wikipedia.org",
@@ -75,7 +77,7 @@ fn bench_parse_bot(c: &mut Criterion) {
 }
 
 fn bench_parse_unicode(c: &mut Criterion) {
-    let buf = Bytes::from_static(UNICODE_JSON);
+    let buf = Bytes::from_static(UNICODE_JSON.as_bytes());
     c.bench_function("parse_zero_copy/unicode_escaped", |b| {
         b.iter(|| {
             let _ = parse_zero_copy(black_box(&buf));

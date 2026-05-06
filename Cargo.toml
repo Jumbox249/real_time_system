@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 description = "Real-time Wikipedia Recent Changes monitoring engine (RTS2601)"
 default-run = "wiki_rt_monitor"
+# Only the three benches declared below are part of the rubric. Disable
+# auto-discovery so unrelated scaffolding files in benches/ do not get built.
+autobenches = false
 
 [lib]
 name = "wiki_rt_monitor"
@@ -36,7 +39,7 @@ rand         = "0.8"
 chrono       = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
-criterion    = { version = "0.5", features = ["html_reports"] }
+criterion    = { version = "0.5", features = ["html_reports", "async_tokio"] }
 tokio        = { version = "1", features = ["full"] }
 
 [[bench]]
