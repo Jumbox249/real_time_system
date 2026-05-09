@@ -1,2 +1,18 @@
+# Claude Code session state
 .claude/
+
+# Rust build artifacts
 target/
+
+# Runtime-generated log files (regenerate with `cargo run`)
+logs/*.csv
+logs/*.txt
+
+# Compiled report PDF (regenerate with pandoc)
+report/*.pdf
+
+# Demo screen recording clips (large binaries)
+demo/clips/
+
+# Criterion benchmark HTML/PNG output (regenerate with `cargo bench`)
+results/criterion/
