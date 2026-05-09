@@ -69,14 +69,18 @@ impl HotPathProcessor {
         }
 
         // ── Stress demo: inject 3 ms busy-spin every Nth packet ──────────────
-        // Drives latency past JITTER_THRESHOLD_US so the FailSafe state
-        // machine transitions Normal → Degraded → Recovery → Normal.
+        // Only active during Phase 2 (15–25 s from program_start) so Phase 4
+        // can cleanly recover to NORMAL once the injection window closes.
         if self.stress.enabled && self.stress.inject_latency_every_nth > 0 {
-            let n = self.stress_counter.fetch_add(1, Ordering::Relaxed);
-            if n % self.stress.inject_latency_every_nth == 0 {
-                let target = Instant::now() + Duration::from_millis(3);
-                while Instant::now() < target {
-                    std::hint::spin_loop();
+            let origin  = self.stress.program_start.unwrap_or_else(Instant::now);
+            let elapsed = origin.elapsed().as_secs();
+            if elapsed >= 15 && elapsed < 25 {
+                let n = self.stress_counter.fetch_add(1, Ordering::Relaxed);
+                if n % self.stress.inject_latency_every_nth == 0 {
+                    let target = Instant::now() + Duration::from_millis(3);
+                    while Instant::now() < target {
+                        std::hint::spin_loop();
+                    }
                 }
             }
         }
@@ -88,15 +92,16 @@ impl HotPathProcessor {
         let t3 = Instant::now();
         pkt.t3 = Some(t3);
 
-        let latency_us = t2.elapsed().as_micros() as f64;
-        let deadline_ok = latency_us <= HOT_DEADLINE.as_micros() as f64;
+        let latency_ns = t2.elapsed().as_nanos() as f64;
+        let deadline_ok = latency_ns <= HOT_DEADLINE.as_nanos() as f64;
 
         if let Ok(mut m) = self.metrics.try_lock() {
             match pkt.priority {
-                Priority::High => m.human_latency_us.push(latency_us),
-                Priority::Low  => m.bot_latency_us.push(latency_us),
+                Priority::High => m.human_latency_us.push(latency_ns),
+                Priority::Low  => m.bot_latency_us.push(latency_ns),
             }
             if !deadline_ok {
+                let latency_us = latency_ns / 1000.0;
                 m.deadline_misses += 1;
                 let miss_ev = DeadlineMissEvent {
                     occurred_at: t3,
@@ -111,7 +116,7 @@ impl HotPathProcessor {
         }
 
         // ── Update fail-safe jitter monitor ──────────────────────────────────
-        self.fail_safe.record_latency(latency_us);
+        self.fail_safe.record_latency(latency_ns / 1000.0);
 
         deadline_ok
     }

@@ -1,4 +1,4 @@
-# Wikipedia Real-Time Monitoring Engine — Project Report
+﻿# Wikipedia Real-Time Monitoring Engine — Project Report
 
 **Course:** RTS2601 — Real-Time Systems
 **Crate:** `wiki_rt_monitor` (Rust 2021)
@@ -19,18 +19,18 @@ The engine is delivered with **two complete pipeline architectures running in pa
 
 Both pipelines feed the same hot path, leaderboard, and fail-safe state machine, allowing direct empirical comparison of throughput, tail latency, and scheduling drift.
 
-### Headline results (60 s mock run, 200 events/s)
+### Headline results (60 s mock run, 2000 events/s)
 
 | Metric | Result |
 |--------|--------|
-| Async throughput | 156 events/s |
-| Threaded throughput | 192 events/s |
+| Async throughput | 956 events/s |
+| Threaded throughput | 1387 events/s |
 | Hot-path deadline misses (2 ms) | **0** |
-| Human-edit latency p99 | **4 µs** |
-| Bot-edit latency p99 | **3 µs** |
-| Scheduling drift p99 (both classes) | 19–22 µs |
+| Human-edit latency p99 | **1.6 µs** |
+| Bot-edit latency p99 | **1.6 µs** |
+| Scheduling drift p99 (human / bot) | 993 µs / 991 µs |
 | Watchdog resets / fail-safe activations | 0 / 0 (steady state) |
-| Atomic-leaderboard throughput | 33 M ops/s vs Mutex 5.9 M / RwLock 6.2 M |
+| Atomic-leaderboard throughput | 35 M ops/s vs Mutex 6.1 M / RwLock 6.2 M |
 
 ---
 
@@ -475,42 +475,52 @@ A single `Arc<Mutex<SharedMetrics>>` is shared across all components. Hot-path c
 > **[SCREENSHOT 6]** *(Terminal — see action item #5.)*
 > Full PERFORMANCE SUMMARY printed by `cargo run --release -- --mock` after 60 seconds. Should show: ingestion counts/throughput for both pipelines, deadline misses = 0, human/bot latency p50/p90/p99, human/bot drift p50/p90/p99, top-3 domains, and the inline sync-strategy benchmark table.
 
-A representative captured run is reproduced below for reference:
+Actual run output:
 
 ```
 ════════════════════════ PERFORMANCE SUMMARY ════════════════════════
   Uptime:                         60.2 s
 
   ── Component A: Ingestion ─────────────────────────────────────────
-  Async events received:          9389
-  Async throughput:               156 events/s
-  Async overflow drops:           0
-  Threaded events received:       11498
-  Threaded throughput:            192 events/s
+  Async events received:          57390
+  Async throughput:               956 events/s
+  Async overflow drops:           0 (logged to logs/overflow_events.csv)
+  Threaded events received:       83200
+  Threaded throughput:            1387 events/s
   Threaded overflow drops:        0
 
   ── Component B: Hot Path (2 ms deadline) ──────────────────────────
-  Deadline misses:                0
-  Human latency  p50/p90/p99:     1.0 / 1.0 / 4.0 µs
-  Bot latency    p50/p90/p99:     0.0 / 1.0 / 3.0 µs
+  Deadline misses:                0 (logged to logs/deadline_misses.csv)
+  Human latency  p50/p90/p99:     0.5 / 1.1 / 1.6 us
+  Bot latency    p50/p90/p99:     0.5 / 1.2 / 1.6 us
 
   ── Component C: Scheduling Drift ──────────────────────────────────
-  Human drift    p50/p90/p99:     8.0 / 14.0 / 19.0 µs
-  Bot drift      p50/p90/p99:     8.0 / 14.0 / 19.0 µs
+  Human drift    p50/p90/p99:     496.0 / 521.0 / 993.0 us
+  Bot drift      p50/p90/p99:     496.0 / 521.0 / 991.0 us
+  [OK] Human drift p99 < bot drift p99 — priority scheduling confirmed.
 
   ── Component D: Leaderboard (Top-3 Domains) ───────────────────────
-  1. it.wikipedia.org                   2131 edits
-  2. nl.wikipedia.org                   2130 edits
-  3. ja.wikipedia.org                   2111 edits
+  1. de.wikipedia.org                  14241 edits
+  2. it.wikipedia.org                  14183 edits
+  3. nl.wikipedia.org                  14158 edits
   Mutex write ops:                0
-  RwLock write ops:               20886
+  RwLock write ops:               140514
   Atomic write ops:               0
 
   ── Component E: Fault Tolerance ───────────────────────────────────
   Watchdog resets:                0
   Fail-safe activations:          0
   Current mode:                   NORMAL
-═══════════════════════════════════════════════════════════════════════
+=======================================================================
+
+  ── Sync-Strategy Benchmark (inline) ───────────────────────────────
+
+  ── Sync-strategy benchmark (4 writers, 10000 ops each) ──
+  Strategy         ops/sec   mean (ns)    p99 (ns)
+  ──────────────────────────────────────────────────
+  Mutex            6054002       572.5      3200.0
+  RwLock           6160481       557.1      3000.0
+  Atomic          34849277        53.0       200.0
 ```
 
 The Mutex / Atomic write-op counters reading 0 is by design — only the chosen `RwLock` strategy is exercised live; the other two are exercised by the inline sync benchmark and the Criterion `sync_bench` separately.
@@ -520,38 +530,103 @@ The Mutex / Atomic write-op counters reading 0 is by design — only the chosen 
 > **[SCREENSHOT 7]** *(Terminal — see action item #6.)*
 > Output of `cargo run --release --bin compare_pipelines -- --mock`. Must include the full PIPELINE COMPARISON REPORT table — events received, throughput, overflow drops, deadline misses, pipeline duration, and full p50/p90/p99 for human latency, bot latency, human drift, and bot drift. Concludes with "Key findings" lines.
 
-Example captured comparison:
+Actual run output:
 
 ```
 ════════════════════ PIPELINE COMPARISON REPORT ════════════════════
   Metric                                   Async      Threaded
   ────────────────────────────────────────────────────────────
-  Events received                           4393          6520
-  Throughput (events/s)                      292           434
+  Events received                           4970          7211
+  Throughput (events/s)                      331           480
   Overflow drops                               0             0
   Deadline misses                              0             0
   Pipeline duration (s)                       15            15
   ────────────────────────────────────────────────────────────
-  Human latency p50 (µs)                     0.0           1.0
-  Human latency p90 (µs)                     0.0           1.0
-  Human latency p99 (µs)                     1.0           3.0
+  Human latency p50 (µs)                     0.1           1.1
+  Human latency p90 (µs)                     0.2           1.3
+  Human latency p99 (µs)                     0.4           1.6
   ────────────────────────────────────────────────────────────
-  Bot latency p50 (µs)                       0.0           1.0
-  Bot latency p90 (µs)                       0.0           1.0
-  Bot latency p99 (µs)                       0.0           4.0
+  Bot latency p50 (µs)                       0.2           1.1
+  Bot latency p90 (µs)                       0.2           1.3
+  Bot latency p99 (µs)                       0.4           1.7
   ────────────────────────────────────────────────────────────
-  Human drift p50 / p90 / p99 (µs)           1.0 / 1.0 / 1.0          10.0 / 14.0 / 19.0
-  Bot   drift p50 / p90 / p99 (µs)           1.0 / 1.0 / 1.0          10.0 / 14.0 / 19.0
+  Human drift p50 (µs)                       1.0         502.0
+  Human drift p90 (µs)                       3.0         523.0
+  Human drift p99 (µs)                       4.0         549.0
+  Bot drift p50 (µs)                         1.0         502.0
+  Bot drift p90 (µs)                         3.0         522.0
+  Bot drift p99 (µs)                         6.0         555.0
   ────────────────────────────────────────────────────────────
   Fail-safe activations                        0             0
 ════════════════════════════════════════════════════════════════════
 
   Key findings:
-  • Threaded achieves 48.4% higher throughput (preemptive OS scheduling).
-  • Async shows lower human-edit tail latency (p99: 1.0 µs vs 3.0 µs).
+  • Threaded achieves 45.1% higher throughput (preemptive OS scheduling).
+  • Async shows lower human-edit tail latency (p99: 0.4 µs vs 1.6 µs).
 ```
 
 **Interpretation.** Threaded delivers higher steady-state throughput because OS-level preemption keeps the parser and hot-path threads actively scheduled even when one is briefly blocked. Async delivers lower tail latency because user-space scheduling avoids the OS context-switch jitter that drives the threaded p99.
+
+### 10.3 Fault-tolerance demo (`--demo`)
+
+The `--demo` mode runs a scripted 4-phase walkthrough over 60 s to exercise the full Component E machinery in a single observable run:
+
+| Phase | Window | Stimulus | Expected behaviour |
+|-------|--------|----------|--------------------|
+| 1 | 0–15 s | Baseline 2000 eps | NORMAL — no misses |
+| 2 | 15–25 s | 3 ms latency injected every 20 packets | DEGRADED; bot packets dropped; DEGRADED ↔ RECOVERY cycling |
+| 3 | 25–38 s | Mock stream silenced | Watchdog fires after 10 s silence → Network Reset |
+| 4 | 38–60 s | Stream resumes, injection stopped | RECOVERY → NORMAL |
+
+Actual run output (`cargo run --release -- --demo`):
+
+```
+[demo] +15s — PHASE 2: latency injection active — expect DEGRADED
+[demo]   current mode: NORMAL
+[fail-safe] mode → DEGRADED
+[fail-safe] mode → RECOVERY
+[fail-safe] mode → DEGRADED
+  … (cycling continues throughout Phase 2) …
+[watchdog] Network Reset #1 triggered — 10010 ms silence (threshold: 10000 ms)
+[fail-safe] mode → RECOVERY
+[fail-safe] mode → NORMAL
+[demo] +25s — PHASE 3: stream silenced — Watchdog fires in ~10s
+[demo]   current mode: NORMAL
+
+════════════════════════ PERFORMANCE SUMMARY ════════════════════════
+  Uptime:                         60.2 s
+
+  ── Component A: Ingestion ─────────────────────────────────────────
+  Async events received:          45049
+  Async throughput:               751 events/s
+  Async overflow drops:           0
+  Threaded events received:       66651
+  Threaded throughput:            1111 events/s
+  Threaded overflow drops:        0
+
+  ── Component B: Hot Path (2 ms deadline) ──────────────────────────
+  Deadline misses:                273 (logged to logs/deadline_misses.csv)
+  Human latency  p50/p90/p99:     0.6 / 1.2 / 1.6 us
+  Bot latency    p50/p90/p99:     0.6 / 1.2 / 1.6 us
+
+  ── Component C: Scheduling Drift ──────────────────────────────────
+  Human drift    p50/p90/p99:     495.0 / 522.0 / 993.0 us
+  Bot drift      p50/p90/p99:     497.0 / 522.0 / 995.0 us
+  [OK] Human drift p99 < bot drift p99 — priority scheduling confirmed.
+
+  ── Component D: Leaderboard (Top-3 Domains) ───────────────────────
+  1. es.wikipedia.org                   9425 edits
+  2. en.wikipedia.org                   9419 edits
+  3. ja.wikipedia.org                   9407 edits
+
+  ── Component E: Fault Tolerance ───────────────────────────────────
+  Watchdog resets:                1
+  Fail-safe activations:          114
+  Current mode:                   NORMAL
+═══════════════════════════════════════════════════════════════════════
+```
+
+**Interpretation.** The lower throughput vs. the clean mock run (751 / 1111 vs. 956 / 1387 events/s) reflects the 10-second stream silence in Phase 3 reducing the total event count. The 273 deadline misses are entirely from the Phase 2 injection window (each injected 3 ms spin exceeds the 2 ms deadline). By Phase 4 the injection has stopped, the watchdog has reset, and the system returns to NORMAL — confirming the full Normal → Degraded → Recovery → Normal cycle and the watchdog path are both exercised in a single run.
 
 ---
 

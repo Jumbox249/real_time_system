@@ -105,8 +105,9 @@ async fn run_async_pipeline_inner(
         StreamSource::Mock(eps) => {
             let raw_tx2 = raw_tx.clone();
             let silence = stress.silence_window;
+            let prog_start = stress.program_start;
             tokio::spawn(async move {
-                mock_stream::run_mock_stream(raw_tx2, eps, stop_ingest, silence).await;
+                mock_stream::run_mock_stream(raw_tx2, eps, stop_ingest, silence, prog_start).await;
             });
         }
     }

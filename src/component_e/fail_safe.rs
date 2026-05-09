@@ -37,18 +37,20 @@ const MODE_DEGRADED: u8 = 1;
 const MODE_RECOVERY: u8 = 2;
 
 pub struct FailSafe {
-    mode:          AtomicU8,
-    clean_cycles:  AtomicU32,
-    recovery_tick: AtomicU32, // toggles every packet in recovery mode
-    metrics:       MetricsHandle,
+    mode:                AtomicU8,
+    degraded_clean:      AtomicU32, // consecutive clean cycles needed to leave DEGRADED
+    clean_cycles:        AtomicU32, // consecutive clean cycles needed to leave RECOVERY
+    recovery_tick:       AtomicU32, // toggles every packet in recovery mode
+    metrics:             MetricsHandle,
 }
 
 impl FailSafe {
     pub fn new(metrics: MetricsHandle) -> Arc<Self> {
         Arc::new(Self {
-            mode:          AtomicU8::new(MODE_NORMAL),
-            clean_cycles:  AtomicU32::new(0),
-            recovery_tick: AtomicU32::new(0),
+            mode:           AtomicU8::new(MODE_NORMAL),
+            degraded_clean: AtomicU32::new(0),
+            clean_cycles:   AtomicU32::new(0),
+            recovery_tick:  AtomicU32::new(0),
             metrics,
         })
     }
@@ -82,8 +84,15 @@ impl FailSafe {
             }
             MODE_DEGRADED => {
                 if latency_us < RECOVERY_THRESHOLD_US {
-                    self.transition_to(MODE_RECOVERY);
-                    self.clean_cycles.store(0, Ordering::Relaxed);
+                    let n = self.degraded_clean.fetch_add(1, Ordering::Relaxed) + 1;
+                    if n >= 25 {
+                        self.degraded_clean.store(0, Ordering::Relaxed);
+                        self.clean_cycles.store(0, Ordering::Relaxed);
+                        self.transition_to(MODE_RECOVERY);
+                    }
+                } else {
+                    // Any spike resets the degraded clean counter.
+                    self.degraded_clean.store(0, Ordering::Relaxed);
                 }
             }
             MODE_RECOVERY => {
@@ -94,8 +103,9 @@ impl FailSafe {
                     }
                 } else if latency_us > JITTER_THRESHOLD_US {
                     // Jitter spiked again – fall back to Degraded.
-                    self.transition_to(MODE_DEGRADED);
+                    self.degraded_clean.store(0, Ordering::Relaxed);
                     self.clean_cycles.store(0, Ordering::Relaxed);
+                    self.transition_to(MODE_DEGRADED);
                 } else {
                     self.clean_cycles.store(0, Ordering::Relaxed);
                 }

@@ -6,7 +6,7 @@
 /// The lifetime `'a` ties each string field to the buffer it came from,
 /// so no heap allocation is required for user / server_name / title during
 /// the hot processing path.
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use serde::Deserialize;
 
 // ─── Wikipedia change event (zero-copy) ──────────────────────────────────────
@@ -131,26 +131,38 @@ pub struct StressConfig {
     /// Inject ~3 ms busy-spin latency on every Nth hot-path packet.
     /// Zero disables injection even when `enabled` is true.
     pub inject_latency_every_nth: u64,
-    /// Mock stream silence window: (start, end) measured from stream start.
+    /// Mock stream silence window: (start, end) measured from `program_start`.
     /// During this window the producer skips `try_send`, so the watchdog
     /// observes ingestion silence and fires a Network Reset.
-    pub silence_window: Option<(std::time::Duration, std::time::Duration)>,
+    pub silence_window: Option<(Duration, Duration)>,
+    /// Shared wall-clock origin so all components measure phases from the
+    /// same reference point regardless of thread/task start-up jitter.
+    pub program_start: Option<Instant>,
 }
 
 impl StressConfig {
     pub const fn off() -> Self {
-        Self { enabled: false, inject_latency_every_nth: 0, silence_window: None }
+        Self { enabled: false, inject_latency_every_nth: 0, silence_window: None, program_start: None }
     }
 
-    /// Default demo profile: 3 ms spike every 50 packets,
-    /// 15 s silence from second 30 to second 45.
+    /// Default demo profile: 3 ms spike every 8 packets (Phase 2, 15–25s,
+    /// keeps system in DEGRADED), silence from 25 s to 38 s (Phase 3, gives
+    /// the watchdog comfortable margin), latency stops at 25 s so Phase 4
+    /// recovers cleanly. Call `with_start` to set the shared clock origin.
     pub fn default_demo() -> Self {
-        use std::time::Duration;
         Self {
             enabled: true,
-            inject_latency_every_nth: 50,
-            silence_window: Some((Duration::from_secs(30), Duration::from_secs(45))),
+            inject_latency_every_nth: 20,
+            silence_window: Some((Duration::from_secs(25), Duration::from_secs(38))),
+            program_start: None,
         }
+    }
+
+    /// Stamp the shared program start time (call once, immediately before
+    /// spawning pipelines, so all components share the same clock origin).
+    pub fn with_start(mut self, t: Instant) -> Self {
+        self.program_start = Some(t);
+        self
     }
 }
 
@@ -187,4 +199,4 @@ pub const JITTER_THRESHOLD_US:  f64 = 2_000.0; // 2 ms
 /// Jitter (µs) at which the system re-enters Recovery from Degraded.
 pub const RECOVERY_THRESHOLD_US: f64 = 500.0;
 /// Consecutive cycles below threshold needed to return to Normal.
-pub const RECOVERY_WINDOW: u32 = 20;
+pub const RECOVERY_WINDOW: u32 = 60;

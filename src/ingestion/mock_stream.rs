@@ -45,11 +45,12 @@ pub async fn run_mock_stream(
     events_per_second:  u64,
     stop:               Arc<AtomicBool>,
     silence_window:     Option<(Duration, Duration)>,
+    program_start:      Option<Instant>,
 ) {
     let interval = Duration::from_micros(1_000_000 / events_per_second.max(1));
     let mut rng  = StdRng::from_entropy();
     let mut seq  = 0u64;
-    let start    = Instant::now();
+    let start    = program_start.unwrap_or_else(Instant::now);
 
     while !stop.load(Ordering::Relaxed) {
         let is_bot      = rng.gen_bool(0.80);
@@ -85,11 +86,12 @@ pub fn run_mock_stream_blocking(
     events_per_second: u64,
     stop:              Arc<AtomicBool>,
     silence_window:    Option<(Duration, Duration)>,
+    program_start:     Option<Instant>,
 ) {
     let interval = Duration::from_micros(1_000_000 / events_per_second.max(1));
     let mut rng  = rand::thread_rng();
     let mut seq  = 0u64;
-    let start    = Instant::now();
+    let start    = program_start.unwrap_or_else(Instant::now);
 
     while !stop.load(Ordering::Relaxed) {
         let is_bot  = rng.gen_bool(0.80);

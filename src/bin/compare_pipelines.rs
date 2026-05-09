@@ -98,24 +98,24 @@ async fn main() {
 
     println!("  {}", "─".repeat(60));
     println!("  {:32}  {:>12}  {:>12}", "Human latency p50 (µs)",
-             format!("{:.1}", am.human_latency_us.p50()),
-             format!("{:.1}", tm.human_latency_us.p50()));
+             format!("{:.1}", am.human_latency_us.p50() / 1000.0),
+             format!("{:.1}", tm.human_latency_us.p50() / 1000.0));
     println!("  {:32}  {:>12}  {:>12}", "Human latency p90 (µs)",
-             format!("{:.1}", am.human_latency_us.p90()),
-             format!("{:.1}", tm.human_latency_us.p90()));
+             format!("{:.1}", am.human_latency_us.p90() / 1000.0),
+             format!("{:.1}", tm.human_latency_us.p90() / 1000.0));
     println!("  {:32}  {:>12}  {:>12}", "Human latency p99 (µs)",
-             format!("{:.1}", am.human_latency_us.p99()),
-             format!("{:.1}", tm.human_latency_us.p99()));
+             format!("{:.1}", am.human_latency_us.p99() / 1000.0),
+             format!("{:.1}", tm.human_latency_us.p99() / 1000.0));
     println!("  {}", "─".repeat(60));
     println!("  {:32}  {:>12}  {:>12}", "Bot latency p50 (µs)",
-             format!("{:.1}", am.bot_latency_us.p50()),
-             format!("{:.1}", tm.bot_latency_us.p50()));
+             format!("{:.1}", am.bot_latency_us.p50() / 1000.0),
+             format!("{:.1}", tm.bot_latency_us.p50() / 1000.0));
     println!("  {:32}  {:>12}  {:>12}", "Bot latency p90 (µs)",
-             format!("{:.1}", am.bot_latency_us.p90()),
-             format!("{:.1}", tm.bot_latency_us.p90()));
+             format!("{:.1}", am.bot_latency_us.p90() / 1000.0),
+             format!("{:.1}", tm.bot_latency_us.p90() / 1000.0));
     println!("  {:32}  {:>12}  {:>12}", "Bot latency p99 (µs)",
-             format!("{:.1}", am.bot_latency_us.p99()),
-             format!("{:.1}", tm.bot_latency_us.p99()));
+             format!("{:.1}", am.bot_latency_us.p99() / 1000.0),
+             format!("{:.1}", tm.bot_latency_us.p99() / 1000.0));
     println!("  {}", "─".repeat(60));
     println!("  {:32}  {:>12}  {:>12}", "Human drift p50 (µs)",
              format!("{:.1}", am.human_drift_us.p50()),
@@ -153,8 +153,8 @@ async fn main() {
             (t_tput - a_tput) / a_tput * 100.0);
     }
 
-    let a_p99 = am.human_latency_us.p99();
-    let t_p99 = tm.human_latency_us.p99();
+    let a_p99 = am.human_latency_us.p99() / 1000.0;
+    let t_p99 = tm.human_latency_us.p99() / 1000.0;
     if a_p99 < t_p99 {
         println!("  • Async shows lower human-edit tail latency (p99: {a_p99:.1} µs vs {t_p99:.1} µs).");
     } else {

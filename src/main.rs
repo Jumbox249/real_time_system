@@ -37,7 +37,7 @@ async fn main() {
 
     // --demo implies --mock and a scripted stress config.
     let stress = if stress_on || demo_mode {
-        StressConfig::default_demo()
+        StressConfig::default_demo().with_start(Instant::now())
     } else {
         StressConfig::off()
     };
@@ -53,9 +53,9 @@ async fn main() {
     if demo_mode {
         println!("[main] DEMO mode — 4-phase scripted fault-tolerance walkthrough");
         println!("[main]   Phase 1 ( 0-15s): baseline 2000 eps, expect NORMAL");
-        println!("[main]   Phase 2 (15-25s): 3ms latency injected every 50 pkts, expect DEGRADED");
-        println!("[main]   Phase 3 (25-35s): mock stream silenced, expect Watchdog reset");
-        println!("[main]   Phase 4 (35-60s): latency recovers, expect RECOVERY -> NORMAL");
+        println!("[main]   Phase 2 (15-25s): 3ms latency injected every 20 pkts, expect DEGRADED");
+        println!("[main]   Phase 3 (25-38s): mock stream silenced, Watchdog fires ~35s");
+        println!("[main]   Phase 4 (38-60s): stream resumes, latency gone, expect RECOVERY -> NORMAL");
     }
 
     println!("╔══════════════════════════════════════════════════════════╗");
@@ -149,8 +149,9 @@ async fn main() {
         tokio::spawn(async move {
             let phases = [
                 (15u64, "PHASE 2: latency injection active — expect DEGRADED"),
-                (25u64, "PHASE 3: stream silent — Watchdog will fire in 10s"),
-                (35u64, "PHASE 4: stream resumes — expect RECOVERY -> NORMAL"),
+                (25u64, "PHASE 3: stream silenced — Watchdog fires in ~10s"),
+                (35u64, "PHASE 3: Watchdog should have fired — stream still silent"),
+                (38u64, "PHASE 4: stream resumed, injection gone — expect RECOVERY -> NORMAL"),
             ];
             for (secs, label) in phases {
                 tokio::time::sleep(Duration::from_secs(secs)).await;
@@ -194,9 +195,9 @@ async fn main() {
     println!("  ── Component B: Hot Path (2 ms deadline) ──────────────────────────");
     println!("  Deadline misses:                {} (logged to logs/deadline_misses.csv)", m.deadline_misses);
     println!("  Human latency  p50/p90/p99:     {:.1} / {:.1} / {:.1} us",
-             m.human_latency_us.p50(), m.human_latency_us.p90(), m.human_latency_us.p99());
+             m.human_latency_us.p50() / 1000.0, m.human_latency_us.p90() / 1000.0, m.human_latency_us.p99() / 1000.0);
     println!("  Bot latency    p50/p90/p99:     {:.1} / {:.1} / {:.1} us",
-             m.bot_latency_us.p50(), m.bot_latency_us.p90(), m.bot_latency_us.p99());
+             m.bot_latency_us.p50() / 1000.0, m.bot_latency_us.p90() / 1000.0, m.bot_latency_us.p99() / 1000.0);
     println!();
     println!("  ── Component C: Scheduling Drift ──────────────────────────────────");
     println!("  Human drift    p50/p90/p99:     {:.1} / {:.1} / {:.1} us",

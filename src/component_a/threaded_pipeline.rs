@@ -66,6 +66,7 @@ pub fn run_threaded_pipeline(
     let stop_ingest    = Arc::clone(&stop);
     let raw_tx_ingest  = raw_tx.clone();
     let silence_window = stress.silence_window;
+    let program_start  = stress.program_start;
     std::thread::Builder::new()
         .name("threaded-ingestion".into())
         .spawn(move || {
@@ -74,6 +75,7 @@ pub fn run_threaded_pipeline(
                 events_per_second,
                 stop_ingest,
                 silence_window,
+                program_start,
             );
         })
         .expect("failed to spawn ingestion thread");
