@@ -5,7 +5,6 @@
 target/
 
 # Documentation — local only, not tracked in git
-README.md
 logs/
 demo/
 report/
