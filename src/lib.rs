@@ -10,3 +10,4 @@ pub mod component_e;
 pub mod ingestion;
 pub mod metrics;
 pub mod types;
+pub mod alloc_counter;

@@ -26,10 +26,24 @@ pub const WIKI_SSE_URL: &str =
 /// Connect to the SSE stream and push raw JSON strings into `tx`.
 /// Updates `last_event_ms` with the current epoch-millisecond on each event.
 /// Returns when `stop` is set or the connection drops (caller should retry).
+///
+/// `reconnect_flag`: when the Watchdog sets this to `true`, the current
+/// connection is abandoned and re-established immediately. The flag is
+/// cleared (set back to `false`) after each reconnect attempt.
 pub async fn run_sse_client(
-    tx:            Sender<Bytes>,
-    last_event_ms: Arc<AtomicI64>,
-    stop:          Arc<AtomicBool>,
+    tx:             Sender<Bytes>,
+    last_event_ms:  Arc<AtomicI64>,
+    stop:           Arc<AtomicBool>,
+) {
+    run_sse_client_with_reconnect(tx, last_event_ms, stop, None).await;
+}
+
+/// Variant that accepts an optional watchdog reconnect flag.
+pub async fn run_sse_client_with_reconnect(
+    tx:             Sender<Bytes>,
+    last_event_ms:  Arc<AtomicI64>,
+    stop:           Arc<AtomicBool>,
+    reconnect_flag: Option<Arc<AtomicBool>>,
 ) {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
@@ -63,6 +77,14 @@ pub async fn run_sse_client(
 
         while let Some(chunk) = byte_stream.next().await {
             if stop.load(Ordering::Relaxed) { return; }
+
+            // Watchdog network reset: reconnect immediately when flagged.
+            if let Some(ref flag) = reconnect_flag {
+                if flag.swap(false, Ordering::Relaxed) {
+                    eprintln!("[sse] watchdog-triggered Network Reset – reconnecting");
+                    break; // exits inner while, outer loop reconnects
+                }
+            }
 
             let chunk = match chunk {
                 Ok(c)  => c,

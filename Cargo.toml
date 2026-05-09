@@ -20,6 +20,10 @@ path = "src/main.rs"
 name = "compare_pipelines"
 path = "src/bin/compare_pipelines.rs"
 
+[[bin]]
+name = "alloc_proof"
+path = "src/bin/alloc_proof.rs"
+
 [dependencies]
 # Async runtime
 tokio        = { version = "1", features = ["full"] }

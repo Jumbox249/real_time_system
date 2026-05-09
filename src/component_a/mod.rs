@@ -5,5 +5,5 @@
 pub mod async_pipeline;
 pub mod threaded_pipeline;
 
-pub use async_pipeline::{run_async_pipeline, AsyncPipelineStats};
+pub use async_pipeline::{run_async_pipeline, run_async_pipeline_with_reconnect, AsyncPipelineStats};
 pub use threaded_pipeline::{run_threaded_pipeline, ThreadedPipelineStats};

@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use crate::component_d::leaderboard::Leaderboard;
 use crate::component_e::fail_safe::FailSafe;
-use crate::metrics::MetricsHandle;
+use crate::metrics::{DeadlineMissEvent, MetricsHandle};
 use crate::types::{ChangePacket, Priority, StressConfig};
 
 /// Hard per-packet processing deadline.
@@ -98,6 +98,15 @@ impl HotPathProcessor {
             }
             if !deadline_ok {
                 m.deadline_misses += 1;
+                let miss_ev = DeadlineMissEvent {
+                    occurred_at: t3,
+                    latency_us,
+                    domain:   pkt.server_name.clone(),
+                    priority: pkt.priority,
+                };
+                eprintln!("[deadline-miss] {:.0} µs domain={} priority={:?}",
+                          latency_us, pkt.server_name, pkt.priority);
+                m.push_deadline_miss(miss_ev);
             }
         }
 

@@ -257,6 +257,90 @@ fn bench_async_pipeline_scalability(c: &mut Criterion) {
     group.finish();
 }
 
+// ─── Benchmark 7: async vs threaded tail latency under load spike ─────────────
+//
+// Distinction requirement: "Criterion.rs comparing Async vs Threaded Tail
+// Latency (p99) better during high-velocity spikes."
+//
+// We run each architecture at steady 200 EPS and measure the p99 end-to-end
+// latency across all processed packets.  A second pass runs the same
+// architectures under 2000 EPS (spike) to expose tail-latency difference.
+
+fn bench_tail_latency_spike(c: &mut Criterion) {
+
+    let mut group = c.benchmark_group("spike/tail_latency_p99");
+
+    // Run for 3 seconds at each EPS level.
+    for eps in [200u64, 2000] {
+        // ── Async ────────────────────────────────────────────────────────────
+        let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
+        let label = format!("async_{eps}eps");
+
+        group.bench_function(&label, |b| {
+            b.iter(|| {
+                rt.block_on(async {
+                    let metrics   = new_metrics();
+                    let stop      = Arc::new(AtomicBool::new(false));
+                    let (tx, rx)  = tokio::sync::mpsc::channel(512);
+                    let lb        = Leaderboard::new(SyncStrategy::Atomic, Arc::clone(&metrics));
+                    let fs        = FailSafe::new(Arc::clone(&metrics));
+                    let hp        = HotPathProcessor::new(Arc::clone(&metrics), Arc::clone(&lb), Arc::clone(&fs), StressConfig::off());
+                    let stop_hp   = Arc::clone(&stop);
+                    tokio::spawn(async move { hp.run_async(rx, stop_hp).await; });
+
+                    let stats = run_async_pipeline(
+                        StreamSource::Mock(eps),
+                        tx,
+                        Arc::clone(&metrics),
+                        Arc::clone(&stop),
+                        Duration::from_secs(BENCH_DURATION_SECS),
+                        Arc::new(AtomicI64::new(0)),
+                        StressConfig::off(),
+                    ).await;
+
+                    // Return p99 from the metrics snapshot.
+                    let m = metrics.lock().unwrap();
+                    let p99 = m.human_latency_us.p99() + m.bot_latency_us.p99();
+                    black_box((stats.events_received, p99))
+                })
+            });
+        });
+
+        // ── Threaded ─────────────────────────────────────────────────────────
+        let label_t = format!("threaded_{eps}eps");
+        group.bench_function(&label_t, |b| {
+            b.iter(|| {
+                let metrics  = new_metrics();
+                let stop     = Arc::new(AtomicBool::new(false));
+                let (tx, rx) = crossbeam::channel::bounded(512);
+                let lb       = Leaderboard::new(SyncStrategy::Atomic, Arc::clone(&metrics));
+                let fs       = FailSafe::new(Arc::clone(&metrics));
+                let hp       = HotPathProcessor::new(Arc::clone(&metrics), Arc::clone(&lb), Arc::clone(&fs), StressConfig::off());
+                let stop_hp  = Arc::clone(&stop);
+                std::thread::spawn(move || {
+                    hp.spawn_threaded(rx, stop_hp).join().ok();
+                });
+
+                let stats = run_threaded_pipeline(
+                    eps,
+                    tx,
+                    Arc::clone(&metrics),
+                    Arc::clone(&stop),
+                    Duration::from_secs(BENCH_DURATION_SECS),
+                    Arc::new(AtomicI64::new(0)),
+                    StressConfig::off(),
+                );
+
+                let m = metrics.lock().unwrap();
+                let p99 = m.human_latency_us.p99() + m.bot_latency_us.p99();
+                black_box((stats.events_received, p99))
+            });
+        });
+    }
+
+    group.finish();
+}
+
 // ─── Criterion groups ─────────────────────────────────────────────────────────
 
 criterion_group!(
@@ -272,5 +356,6 @@ criterion_group!(
     bench_overflow_handling,
 );
 criterion_group!(dispatch, bench_parse_and_dispatch);
+criterion_group!(spike, bench_tail_latency_spike);
 
-criterion_main!(throughput, channels, dispatch);
+criterion_main!(throughput, channels, dispatch, spike);

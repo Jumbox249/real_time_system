@@ -12,6 +12,8 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use crate::types::OverflowEvent;
+
 // ─── Percentile statistics ────────────────────────────────────────────────────
 
 const WINDOW: usize = 10_000;
@@ -122,6 +124,21 @@ pub struct SharedMetrics {
     /// samples/sec for each architecture (updated by comparison runner).
     pub async_throughput:    f64,
     pub threaded_throughput: f64,
+
+    // ── Event logs (for report evidence) ────────────────────────────────────
+    /// Bounded log of overflow events (drop-oldest backpressure triggers).
+    pub overflow_log:      Vec<OverflowEvent>,
+    /// Bounded log of deadline misses for report evidence.
+    pub deadline_miss_log: Vec<DeadlineMissEvent>,
+}
+
+/// One deadline miss record – stored in `SharedMetrics.deadline_miss_log`.
+#[derive(Debug, Clone)]
+pub struct DeadlineMissEvent {
+    pub occurred_at: std::time::Instant,
+    pub latency_us:  f64,
+    pub domain:      String,
+    pub priority:    crate::types::Priority,
 }
 
 impl SharedMetrics {
@@ -134,6 +151,22 @@ impl SharedMetrics {
         entries.truncate(n);
         entries
     }
+
+    /// Append an overflow event, capping the log at 10 000 entries.
+    pub fn push_overflow(&mut self, ev: OverflowEvent) {
+        if self.overflow_log.len() >= 10_000 {
+            self.overflow_log.remove(0);
+        }
+        self.overflow_log.push(ev);
+    }
+
+    /// Append a deadline-miss event, capping the log at 10 000 entries.
+    pub fn push_deadline_miss(&mut self, ev: DeadlineMissEvent) {
+        if self.deadline_miss_log.len() >= 10_000 {
+            self.deadline_miss_log.remove(0);
+        }
+        self.deadline_miss_log.push(ev);
+    }
 }
 
 /// Convenience handle shared across all components.
@@ -141,7 +174,9 @@ pub type MetricsHandle = Arc<Mutex<SharedMetrics>>;
 
 pub fn new_metrics() -> MetricsHandle {
     Arc::new(Mutex::new(SharedMetrics {
-        current_mode: "NORMAL".to_owned(),
+        current_mode:      "NORMAL".to_owned(),
+        overflow_log:      Vec::new(),
+        deadline_miss_log: Vec::new(),
         ..Default::default()
     }))
 }

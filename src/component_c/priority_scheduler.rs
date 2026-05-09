@@ -89,9 +89,9 @@ impl PriorityScheduler {
     }
 
     /// Run the scheduling dispatch loop, feeding packets to `out_tx`.
-    /// Runs until `stop` is set.
+    /// Runs until `stop` is set. Uses `&self` so it can be called from an Arc.
     pub fn run_dispatch_loop(
-        self,
+        &self,
         out_tx: Sender<ChangePacket>,
         stop:   Arc<AtomicBool>,
     ) {
@@ -107,6 +107,17 @@ impl PriorityScheduler {
     pub fn high_tx(&self) -> Sender<ChangePacket> { self.high_tx.clone() }
     /// Sender handle for low-priority packets.
     pub fn low_tx(&self)  -> Sender<ChangePacket> { self.low_tx.clone() }
+
+    /// Drop-oldest backpressure: evict the head of the queue for `priority`.
+    /// Called when `enqueue` returns false (queue full) before retrying.
+    pub fn evict_oldest(&self, priority: Priority) {
+        let rx = match priority {
+            Priority::High => &self.high_rx,
+            Priority::Low  => &self.low_rx,
+        };
+        // Discard the oldest item; ignore if already empty.
+        let _ = rx.try_recv();
+    }
 }
 
 #[cfg(test)]

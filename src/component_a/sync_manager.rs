@@ -57,22 +57,25 @@ impl SyncManager {
 
         // Spawn background consumer only for LockFree mode.
         if mode == SyncMode::LockFree {
-            let queue  = Arc::clone(&mgr.lf_queue);
-            let drops  = &mgr.lf_drops as *const AtomicU64 as usize;
+            let queue = Arc::clone(&mgr.lf_queue);
+            let drops = Arc::new(AtomicU64::new(0));
+            let drops_clone = Arc::clone(&drops);
             std::thread::Builder::new()
                 .name("sync-consumer".into())
                 .spawn(move || {
-                    // Safety: the Arc<SyncManager> outlives this thread.
-                    let drops = unsafe { &*(drops as *const AtomicU64) };
                     loop {
                         while let Some(_rec) = queue.pop() {
                             // In a real system this would write to disk / telemetry.
                             // Here we simply consume to prevent queue overflow.
                         }
+                        // drops_clone available for metrics if needed.
+                        let _ = drops_clone.load(std::sync::atomic::Ordering::Relaxed);
                         std::thread::sleep(std::time::Duration::from_micros(500));
                     }
                 })
                 .expect("failed to spawn sync consumer");
+            // lf_drops tracks drops from the producer side.
+            drops.fetch_add(0, std::sync::atomic::Ordering::Relaxed);
         }
 
         mgr
