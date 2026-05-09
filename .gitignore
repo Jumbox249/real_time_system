@@ -4,15 +4,12 @@
 # Rust build artifacts
 target/
 
-# Runtime-generated log files (regenerate with `cargo run`)
-logs/*.csv
-logs/*.txt
-
-# Compiled report PDF (regenerate with pandoc)
-report/*.pdf
-
-# Demo screen recording clips (large binaries)
-demo/clips/
+# Documentation — local only, not tracked in git
+README.md
+logs/
+demo/
+report/
+scripts/
 
 # Criterion benchmark HTML/PNG output (regenerate with `cargo bench`)
-results/criterion/
+results/
