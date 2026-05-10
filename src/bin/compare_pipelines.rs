@@ -97,6 +97,7 @@ async fn main() {
          thr_stats.duration_secs as u64, "");
 
     println!("  {}", "─".repeat(60));
+    // ▶ SHOW: p50/p90/p99 — tail latency comparison across both architectures
     println!("  {:32}  {:>12}  {:>12}", "Human latency p50 (µs)",
              format!("{:.1}", am.human_latency_us.p50() / 1000.0),
              format!("{:.1}", tm.human_latency_us.p50() / 1000.0));
@@ -140,7 +141,7 @@ async fn main() {
              am.fail_safe_activations, tm.fail_safe_activations);
     println!("════════════════════════════════════════════════════════════════════");
 
-    // Key findings.
+    // ▶ SHOW: Key findings — programmatic winner for throughput and tail latency
     println!();
     println!("  Key findings:");
     let a_tput = am.async_throughput;

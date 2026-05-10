@@ -71,6 +71,7 @@ impl FailSafe {
         self.mode.load(Ordering::Relaxed) == MODE_RECOVERY
     }
 
+    // ▶ every packet calls this — latency drives FSM transitions automatically
     /// Called by the hot-path with the processing latency of each packet.
     /// Updates the state machine based on the observed jitter.
     pub fn record_latency(&self, latency_us: f64) {

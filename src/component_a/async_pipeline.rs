@@ -42,6 +42,7 @@ impl AsyncPipelineStats {
     }
 }
 
+// ▶ SHOW: async pipeline — Tokio cooperative scheduling, bounded mpsc channel
 /// Run the async pipeline for `duration`, returning throughput statistics.
 /// `packet_tx` is the downstream channel to the hot-path processing stage.
 /// `last_event` is updated to a SystemTime epoch-ms on every successfully

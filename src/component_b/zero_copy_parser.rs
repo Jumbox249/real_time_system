@@ -24,6 +24,7 @@ use crate::types::{ChangePacket, WikiChange};
 /// The returned `ChangePacket` is the *only* allocation on the hot path –
 /// and only for the fields we actually need to keep (domain for leaderboard,
 /// priority for scheduling).
+// ▶ SHOW: WikiChange<'_> borrows &str from buf — no String allocation for parsing
 pub fn parse_zero_copy(buf: &Bytes) -> Option<ChangePacket> {
     // WikiChange<'_> borrows &str directly from the `buf` slice.
     // serde_json::from_slice is zero-copy for unescaped ASCII strings.

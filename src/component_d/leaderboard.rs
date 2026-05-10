@@ -40,9 +40,11 @@ const KNOWN_DOMAINS: [&str; 10] = [
     "nl.wikipedia.org",
 ];
 
+// ▶ SHOW: three sync strategies — benchmarked for throughput and tail latency
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyncStrategy { Mutex, RwLock, Atomic }
 
+// ▶ SHOW: one data structure per strategy — all three live in the same struct
 pub struct Leaderboard {
     strategy: SyncStrategy,
 

@@ -40,6 +40,7 @@ impl ThreadedPipelineStats {
     }
 }
 
+// ▶ SHOW: threaded pipeline — OS preemptive scheduling, bounded crossbeam channel
 /// Run the threaded pipeline, blocking the calling thread for `duration`.
 /// `last_event` is updated to a SystemTime epoch-ms on every successfully
 /// parsed event so the Watchdog (Component E) can detect ingestion silence.

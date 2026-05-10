@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 // ─── Wikipedia change event (zero-copy) ──────────────────────────────────────
 
+// ▶ SHOW: WikiChange<'a> — the lifetime ties every string field to the raw buffer (zero-copy)
 /// Raw Wikipedia Recent-Changes SSE payload, parsed zero-copy.
 ///
 /// Fields borrow from the original JSON buffer via the `'a` lifetime.
@@ -18,6 +19,7 @@ use serde::Deserialize;
 /// (e.g. `A`); otherwise `&'a str` points directly into the buffer.
 #[derive(Debug, Deserialize)]
 pub struct WikiChange<'a> {
+    // ▶ SHOW: #[serde(borrow)] — tells serde to borrow &str instead of allocating String
     /// Username of the editor (human or bot).
     #[serde(borrow)]
     pub user: Option<&'a str>,

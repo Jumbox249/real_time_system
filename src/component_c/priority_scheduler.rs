@@ -59,6 +59,7 @@ impl PriorityScheduler {
         }
     }
 
+    // ▶ SHOW: human-first drain — high_rx is always checked before low_rx
     /// Dequeue the next packet, preferring high-priority items.
     /// Stamps T2 (actual dequeue time) and records scheduling drift.
     pub fn dequeue_next(&self) -> Option<ChangePacket> {

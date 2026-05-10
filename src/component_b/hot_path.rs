@@ -46,7 +46,7 @@ impl HotPathProcessor {
     /// Process one ChangePacket on the hot path.
     /// Returns `true` if the packet was processed within the deadline.
     pub fn process(&self, mut pkt: ChangePacket) -> bool {
-        // T2: dequeue time (start of hot path).
+        // ▶ SHOW: T2 stamp — packet leaves the queue, hot path starts here
         let t2 = Instant::now();
         pkt.t2 = Some(t2);
 
@@ -88,11 +88,12 @@ impl HotPathProcessor {
         // ── Leaderboard update (Component D) ─────────────────────────────────
         self.leaderboard.increment(&pkt.server_name);
 
-        // ── Deadline check & metrics ─────────────────────────────────────────
+        // ▶ SHOW: T3 stamp — processing done; T3−T2 must be < 2 ms
         let t3 = Instant::now();
         pkt.t3 = Some(t3);
 
         let latency_ns = t2.elapsed().as_nanos() as f64;
+        // ▶ SHOW: 2 ms deadline check — logs a miss if exceeded
         let deadline_ok = latency_ns <= HOT_DEADLINE.as_nanos() as f64;
 
         if let Ok(mut m) = self.metrics.try_lock() {
